@@ -1,7 +1,9 @@
+require('dotenv').config()
 const express = require("express");
 const app = express();
 const morgan = require('morgan')
 const cors = require('cors')
+const Phonebook = require("./models/Phonebook")
 
 app.use(express.json())
 app.use(express.static('build'))
@@ -44,57 +46,86 @@ app.use(requestLogger)
 
 
 app.get("/api/persons", (req, res) => {
-    res.json(persons);
+  Phonebook.find({})
+  .then(phonebook => {
+    res.json(phonebook);
+  })
 })
 
 app.get("/api/persons/:id", (req,res)=>{
-  const id=Number(req.params.id)
-  
-    const findId=persons.find(person=>person.id===id)
-  if (findId){
-    // res.json(findId)
-    res.send(`<h2>Name: ${findId.name}</h2><h2>Number: ${findId.number}`)
-  }else{
-    res.status(404).end()
-  }
+  Phonebook.findById(req.params.id)
+  .then(phonebook => {
+    if(phonebook) {
+      res.json(phonebook)
+    } else {
+      res.status(404).end()
+    }
+  })
+  .catch(err => {
+    console.log("", err)
+    res.status(400).send({err: 'malformatted id'})
+  })
 })
 
 app.delete('/api/persons/:id', (req, res)=>{
-  const id=Number(req.params.id)
-  const persons=persons.find(person=>person.id!==id)
-  res.json(persons)
-  res.status(204).end()
+
+  Phonebook.findById(req.params.id)
+  .then(phonebook => {
+    res.json(phonebook)
+  })
 })
 
 app.post('/api/persons', (req, res)=>{
   const body=req.body
-  const findDuplicate=persons.find(person=>person.name===body.name)
-  const generatedId=Math.floor(Math.random()*1000)
-  
-  if (!body.name || !body.number){
-    return res.status(400).json({error: "Name or number missing"})
-  }else if(findDuplicate){
-      return res.json({error:"name must be unique"})
-    }else{
-      const person={
-      "name": body.name, 
-      "number": body.number,
-      "id": generatedId,
-    }
-    persons=persons.concat(person)
-    res.json(persons)
+  if (body.name === undefined || body.phone === undefined) {
+    return res.status(400).json({error: "name or phone missing"})
   }
+
+  const phonebook = new Phonebook({
+    name: body.name,
+    phone: body.phone,
+  })
+
+  phonebook.save()
+  .then(savedPhone => {
+    res.json(savedPhone)
+  })
+
+
+  // const findDuplicate=persons.find(person=>person.name===body.name)
+  // const generatedId=Math.floor(Math.random()*1000)
+  
+  // if (body.name === undefined || body.number === undefined){
+  //   return res.status(400).json({error: "Name or number missing"})
+  // }else if(findDuplicate){
+  //     return res.json({error:"name must be unique"})
+  //   }else{
+  //     const person= new Phonebook({
+  //     name: body.name, 
+  //     number: body.number,
+  //   })
+  //   person.save()
+  //   .then(savedPhone)
+  //   res.json(savedPhone)
+  // }
 })
 
-app.get('/info', (req,res)=>{
-  const nrPerson=persons.length
-  const timeRequest= new Date()
+app.get('/info', (req, res) => {
+  Phonebook.countDocuments({})
+    .then(count => {
+      const nrPerson = count;
+      const timeRequest = new Date();
+      res.send(`<p>Phonebook has info for ${nrPerson} people</p><br/><p>${timeRequest}</p>`);
+    })
+    .catch(error => {
+      console.error('Error retrieving person count:', error);
+      res.status(500).send('Internal Server Error');
+    });
+});
 
-  res.send(`<p>Phonebook has info for ${nrPerson} people</p><br/><p>${timeRequest}`)
-})
 
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 })
